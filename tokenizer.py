@@ -5,7 +5,8 @@ import argparse
 import numpy as np
 import pickle
 
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 from keras.backend.tensorflow_backend import set_session, clear_session
 config = tf.ConfigProto()
 config.gpu_options.per_process_gpu_memory_fraction = -1
