@@ -405,7 +405,7 @@ def train(conllu_train_file, conllu_dev_file, save_path):
     model.save(os.path.join(save_path, 'tokenizer.udpipe'))
     outf = open(os.path.join(save_path, 'vocab.pickle'), 'wb')
     pickle.dump(vocab, outf)
-    ouclose()
+    outf.close()
 
     #X = []
     #Y = []
