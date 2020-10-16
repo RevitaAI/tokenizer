@@ -1,17 +1,21 @@
 import argparse
 import numpy as np
-from keras.utils import to_categorical
-import keras
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
+from tensorflow.keras.utils import to_categorical
+import tensorflow.keras
 import sys
 import pickle
-
+import os
 # - load_conllu(file)
 #   - loads CoNLL-U file from given file object to an internal representation
 #   - the file object should return str on both Python 2 and Python 3
 #   - raises UDError exception if the given file cannot be loaded
 # - evaluate(gold_ud, system_ud)
 
-from conll17_ud_eval import load_conllu, evaluate
+from conll18_ud_eval import load_conllu, evaluate
+
+
 
 
 #Todos:
@@ -86,7 +90,7 @@ Epoch 20/20
 '''
 
 
-class Evalcb(keras.callbacks.Callback):
+class Evalcb(tensorflow.keras.callbacks.Callback):
 
     def __init__(self, dev_x, dev_y, win=10):
 
@@ -120,7 +124,7 @@ class Evalcb(keras.callbacks.Callback):
 
 
 
-class BMcb(keras.callbacks.Callback):
+class BMcb(tensorflow.keras.callbacks.Callback):
 
     def __init__(self):
 
@@ -137,7 +141,7 @@ class BMcb(keras.callbacks.Callback):
 
         if logs.get('val_loss') < self.best_loss:
             self.best_loss = logs.get('val_loss')
-            self.best_model = model
+            self.best_model = self.model
 
 def data_matrix_to_conllu(x, y, vocab, f=sys.stdout):
 
@@ -211,11 +215,11 @@ def data_matrix_to_conllu(x, y, vocab, f=sys.stdout):
 
     return out
 
-from keras.models import Model
-from keras.layers import Input, LSTM, Dense, Embedding, TimeDistributed, Conv1D, Multiply, Dropout
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, LSTM, Dense, Embedding, TimeDistributed, Conv1D, Multiply, Dropout
 from pandas import Series
 from matplotlib import pyplot
-from keras.callbacks import TensorBoard
+from tensorflow.keras.callbacks import TensorBoard
 from sklearn.metrics import classification_report
 
 
@@ -365,90 +369,100 @@ def make_data_matrix(x, y1, y2, width = 150, vocab=None):
 
     return xnp, y1np, y2np, vocab
 
+def train(conllu_train_file, conllu_dev_file, save_path):
+    #We read conllu training data
+    train_conllu_x, train_conllu_ty, train_conllu_sy = make_conllu_data(conllu_train_file, corruption=0.0)
+    dev_conllu_x, dev_conllu_ty, dev_conllu_sy = make_conllu_data(conllu_dev_file, corruption=0.0)
 
-def main():
-
-    #
-    #Are you about to train, predict or eval?
-    #
-
-    choice = 'train'
-
-    if choice == 'train':
-
-        conllu_train_file = './UD_Finnish-TDT/fi_tdt-ud-train.conllu'
-        conllu_dev_file = './UD_Finnish-TDT/fi_tdt-ud-dev.conllu'
-        conllu_test_file = ''
-  
-        #X = []
-        #Y = []
-
-        #We read conllu training data
-        train_conllu_x, train_conllu_ty, train_conllu_sy = make_conllu_data(conllu_train_file, corruption=0.0)
-        dev_conllu_x, dev_conllu_ty, dev_conllu_sy = make_conllu_data(conllu_dev_file, corruption=0.0)
-
-        train_x, train_ty, train_sy, vocab = make_data_matrix(train_conllu_x,train_conllu_ty, train_conllu_sy, vocab=None)
-        dev_x, dev_ty, dev_sy, vocab = make_data_matrix(dev_conllu_x,dev_conllu_ty, dev_conllu_sy, vocab=vocab)
+    train_x, train_ty, train_sy, vocab = make_data_matrix(train_conllu_x,train_conllu_ty, train_conllu_sy, vocab=None)
+    dev_x, dev_ty, dev_sy, vocab = make_data_matrix(dev_conllu_x,dev_conllu_ty, dev_conllu_sy, vocab=vocab)
 
 
-        #Let's cut ourselves a dev set
-        '''
-        dev_x = train_x[-100:]
-        dev_ty = train_ty[-100:]
-        dev_sy = train_sy[-100:]
-        '''
+    #Let's cut ourselves a dev set
+    '''
+    dev_x = train_x[-100:]
+    dev_ty = train_ty[-100:]
+    dev_sy = train_sy[-100:]
+    '''
 
-        train_ty += train_sy
-        train_ty = to_categorical(train_ty)
-        train_sy = to_categorical(train_sy)
+    train_ty += train_sy
+    train_ty = to_categorical(train_ty)
+    train_sy = to_categorical(train_sy)
 
-        dev_ty += dev_sy
-        dev_ty = to_categorical(dev_ty)
-        dev_sy = to_categorical(dev_sy)
+    dev_ty += dev_sy
+    dev_ty = to_categorical(dev_ty)
+    dev_sy = to_categorical(dev_sy)
 
-        ## H A C K XXX
-        #xtrain_sy = train_ty
-        #xtrain_ty = train_sy
-        #train_sy = xtrain_sy
-        #train_ty = xtrain_ty
+    ## H A C K XXX
+    #xtrain_sy = train_ty
+    #xtrain_ty = train_sy
+    #train_sy = xtrain_sy
+    #train_ty = xtrain_ty
 
 
-        model = make_and_train_model(train_x, train_ty, train_sy, vocab, dev_x, dev_ty, dev_sy)
+    model = make_and_train_model(train_x, train_ty, train_sy, vocab, dev_x, dev_ty, dev_sy)
 
-        model.save('model')
-        outf = open('vocab.pickle', 'wb')
-        pickle.dump(vocab, outf)
-        outf.close()
+    model.save(os.path.join(save_path, 'tokenizer.udpipe'))
+    outf = open(os.path.join(save_path, 'vocab.pickle'), 'wb')
+    pickle.dump(vocab, outf)
+    ouclose()
 
-        '''
+    #X = []
+    #Y = []
 
-        print (data_matrix_to_conllu(train_x, train_ty, vocab))
+    
 
-        print (data_matrix_to_conllu(train_x, train_ty, vocab))
-        '''
+    '''
 
-        #    X.append(conllu_x)
-        #    Y.append(conllu_y)
-        '''
-        for f in tag_files:
+    print (data_matrix_to_conllu(train_x, train_ty, vocab))
 
-            #We read extra data in the tag format
-            extra_x, extra_y = make_tag_data(tag_file)        
-            X.append(extra_x)
-            Y.append(extra_y)
+    print (data_matrix_to_conllu(train_x, train_ty, vocab))
+    '''
 
-        '''
-        #Do eval
-        '''
-        model, epoch_losses, train_losses = train_model(train_X, train_Y)
-        '''
+    #    X.append(conllu_x)
+    #    Y.append(conllu_y)
+    '''
+    for f in tag_files:
 
-        #Visualize these
-        
-        #Save the model
+        #We read extra data in the tag format
+        extra_x, extra_y = make_tag_data(tag_file)        
+        X.append(extra_x)
+        Y.append(extra_y)
+
+    '''
+    #Do eval
+    '''
+    model, epoch_losses, train_losses = train_model(train_X, train_Y)
+    '''
+
+    #Visualize these
+    
+    #Save the model
 
 #Pomodoro_1: conllu data into np matrices
 
 
+if __name__=="__main__":
+    import argparse
+    argparser = argparse.ArgumentParser(description='A script for training new models')
+    argparser.add_argument('--save_dir', type=str, required=True, help='Model saving path')
+    subparsers = argparser.add_subparsers()
+    train_parser = subparsers.add_parser('train')
+    train_parser.set_defaults(action="train")
+    train_parser.add_argument('--train_file', type=str, required=True, help='Training data file (conllu)')
+    train_parser.add_argument('--devel_file', type=str, required=True, help='Development data file (conllu)')
+    train_parser.add_argument('--test_file', type=str, default='', help='Testing data file (conllu)')
+    
+    args = argparser.parse_args()
+    
+    '''
+        conllu_train_file = args.train_file
+        conllu_dev_file = args.devel_file
+        conllu_test_file = args.test_file
+    '''
+    #
+    #Are you about to train, predict or eval?
+    #
 
-main()
+    if  args.action == 'train':
+        train(args.train_file, args.devel_file, args.save_dir)        
